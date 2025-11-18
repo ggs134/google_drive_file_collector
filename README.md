@@ -161,7 +161,11 @@ Google Drive 문서를 읽기 위한 클래스입니다.
 - `service`: Google Drive API 서비스 객체
 - `folder_id`: 검색할 폴더 ID (None이면 전체 드라이브)
 - `start_date`: 시작 날짜 (datetime 또는 'YYYY-MM-DD' 형식)
+  - 기준 시간: 해당 날짜의 **00:00:00 GMT** (자정, GMT 기준)
+  - 예: `'2025-11-10'` → `2025-11-10 00:00:00 GMT`부터 검색
 - `end_date`: 종료 날짜 (datetime 또는 'YYYY-MM-DD' 형식)
+  - 기준 시간: 해당 날짜의 **23:59:59 GMT** (그 날의 마지막 초, GMT 기준)
+  - 예: `'2025-11-17'` → `2025-11-17 23:59:59 GMT`까지 검색
 - `search_type`: 'created' 또는 'modified'
 - `recursive`: 하위 폴더 포함 여부
 - `file_types`: 파일 타입 필터 (예: ['gdoc', 'pdf', 'image'])
