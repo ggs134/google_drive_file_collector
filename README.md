@@ -19,7 +19,7 @@ Google Drive에서 파일을 검색하고, Google 문서의 내용을 읽어서 
 - 파일 타입 자동 감지
 - 읽은 결과를 CSV로 저장
 
-### 3. 통합 워크플로우 (`test.py`)
+### 3. 통합 워크플로우 (`example.py`)
 - 파일 검색과 내용 읽기를 한 번에 처리
 - 검색된 파일 ID를 자동으로 추출하여 내용 읽기
 
@@ -149,8 +149,8 @@ Google Drive 문서를 읽기 위한 클래스입니다.
 - `read_google_doc(file_id)`: Google Docs를 텍스트로 읽기
 - `read_google_sheet(file_id)`: Google Sheets를 CSV로 읽기
 - `read_files(file_ids)`: 단일 또는 여러 파일 읽기
-- `save_results_to_csv(results, output_file, include_content)`: 결과를 CSV로 저장
-- `save_to_separate_csv(results, output_dir)`: 각 파일을 개별 CSV로 저장
+- `save_results_to_csv(results, output_file='output.csv', include_content=True)`: 결과를 CSV로 저장
+- `save_to_separate_csv(results, output_dir='output_csv')`: 각 파일을 개별 CSV로 저장
 
 ### `get_files_in_date_range()`
 
@@ -166,12 +166,12 @@ Google Drive 문서를 읽기 위한 클래스입니다.
 - `end_date`: 종료 날짜 (datetime 또는 'YYYY-MM-DD' 형식)
   - 기준 시간: 해당 날짜의 **23:59:59 GMT** (그 날의 마지막 초, GMT 기준)
   - 예: `'2025-11-17'` → `2025-11-17 23:59:59 GMT`까지 검색
-- `search_type`: 'created' 또는 'modified'
-- `recursive`: 하위 폴더 포함 여부
-- `file_types`: 파일 타입 필터 (예: ['gdoc', 'pdf', 'image'])
-- `filename_keywords`: 파일명에 포함될 키워드 리스트
-- `exclude_keywords`: 제외할 키워드 리스트
-- `debug`: 디버그 정보 출력 여부
+- `search_type`: 'created' 또는 'modified' (기본값: 'modified')
+- `recursive`: 하위 폴더 포함 여부 (기본값: False)
+- `file_types`: 파일 타입 필터 (예: ['gdoc', 'pdf', 'image']) (기본값: None, 모든 타입)
+- `filename_keywords`: 파일명에 포함될 키워드 리스트 (기본값: None)
+- `exclude_keywords`: 제외할 키워드 리스트 (기본값: None)
+- `debug`: 디버그 정보 출력 여부 (기본값: False)
 
 ## 지원하는 파일 타입
 
