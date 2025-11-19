@@ -251,8 +251,10 @@ def get_files_in_date_range(service, folder_id=None, start_date=None, end_date=N
     Args:
         service: Google Drive API service object
         folder_id: Folder ID to search (searches entire drive if None)
-        start_date: Start date (datetime object or 'YYYY-MM-DD' string)
-        end_date: End date (datetime object or 'YYYY-MM-DD' string)
+        start_date: Start date/time (datetime object or string in format:
+                  'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', or 'YYYY-MM-DDTHH:MM:SS')
+        end_date: End date/time (datetime object or string in format:
+                'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', or 'YYYY-MM-DDTHH:MM:SS')
         search_type: 'created' (by creation date) or 'modified' (by modification date)
         recursive: If True, recursively search subfolders
         debug: If True, print debug information
@@ -264,27 +266,87 @@ def get_files_in_date_range(service, folder_id=None, start_date=None, end_date=N
         List of file information
     """
     
-    # Parse dates
+    # Parse dates - support multiple string formats
+    # Track if time was explicitly specified in the original string
+    start_has_time = False
+    end_has_time = False
+    
     if isinstance(start_date, str):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        # Check if time is included in the string
+        start_has_time = 'T' in start_date or (' ' in start_date and len(start_date) > 10)
+        # Try different date/time formats
+        try:
+            # Try ISO format with T separator: 'YYYY-MM-DDTHH:MM:SS'
+            start_date = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S')
+        except ValueError:
+            try:
+                # Try space separator: 'YYYY-MM-DD HH:MM:SS'
+                start_date = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # Try date only: 'YYYY-MM-DD'
+                    start_date = datetime.strptime(start_date, '%Y-%m-%d')
+                    start_has_time = False
+                except ValueError:
+                    raise ValueError(f"Invalid start_date format: {start_date}. Use 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', or 'YYYY-MM-DDTHH:MM:SS'")
+    
     if isinstance(end_date, str):
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        # Check if time is included in the string
+        end_has_time = 'T' in end_date or (' ' in end_date and len(end_date) > 10)
+        # Try different date/time formats
+        try:
+            # Try ISO format with T separator: 'YYYY-MM-DDTHH:MM:SS'
+            end_date = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S')
+        except ValueError:
+            try:
+                # Try space separator: 'YYYY-MM-DD HH:MM:SS'
+                end_date = datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # Try date only: 'YYYY-MM-DD'
+                    end_date = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_has_time = False
+                except ValueError:
+                    raise ValueError(f"Invalid end_date format: {end_date}. Use 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', or 'YYYY-MM-DDTHH:MM:SS'")
     
     # Set defaults (last 7 days)
     if end_date is None:
         end_date = datetime.now()
+        end_has_time = True  # datetime.now() includes time
     if start_date is None:
         start_date = end_date - timedelta(days=7)
+        start_has_time = False  # Default to start of day
     
     # Convert to RFC 3339 format
-    start_date_str = start_date.strftime('%Y-%m-%dT00:00:00')
-    end_date_str = end_date.strftime('%Y-%m-%dT23:59:59')
+    # If time was specified, use it; otherwise use default times
+    if start_has_time:
+        # Time was explicitly specified, use it
+        start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%S')
+    else:
+        # Time was not specified, use 00:00:00
+        start_date_str = start_date.strftime('%Y-%m-%dT00:00:00')
+    
+    if end_has_time:
+        # Time was explicitly specified, use it
+        end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%S')
+    else:
+        # Time was not specified, use 23:59:59
+        end_date_str = end_date.strftime('%Y-%m-%dT23:59:59')
     
     # Select field based on search type
     time_field = 'modifiedTime' if search_type == 'modified' else 'createdTime'
     
     print(f"\nSearch Criteria:")
-    print(f"  - Period: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
+    # Format date/time for display
+    if start_has_time:
+        start_display = start_date.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        start_display = start_date.strftime('%Y-%m-%d')
+    if end_has_time:
+        end_display = end_date.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        end_display = end_date.strftime('%Y-%m-%d')
+    print(f"  - Period: {start_display} ~ {end_display}")
     print(f"  - Search By: {'Modified Date' if search_type == 'modified' else 'Created Date'}")
     
     # Print filter conditions
