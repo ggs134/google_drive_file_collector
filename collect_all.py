@@ -143,7 +143,10 @@ if __name__ == "__main__":
 
     folder_list = [shared_folder_id, irene_folder_id, jaden_folder_id, kevin_folder_id]
     
-    collection_list = [client.shared.recordings, client.irene.recordings, client.jaden.recordings, client.kevin.recordings]
+    # collection_list = [client.shared.recordings, client.irene.recordings, client.jaden.recordings, client.kevin.recordings]
+    
+    # for test
+    collection_list = [client.test_database.recordings, client.test_database.recordings, client.test_database.recordings, client.test_database.recordings]
     
     collection_dict = dict(zip(folder_list, collection_list))
 
