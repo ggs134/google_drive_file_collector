@@ -1,11 +1,11 @@
 # Google Drive 파일 수집기 (Recording Script Collector)
 
-Google Drive에서 파일을 검색하고, Google 문서의 내용을 읽어서 CSV 파일로 저장하는 도구입니다.
+Google Drive에서 파일을 검색하고, Google 문서의 내용을 읽어서 CSV 파일로 저장하거나 MongoDB에 저장하는 도구입니다.
 
 ## 주요 기능
 
 ### 1. Google Drive 파일 검색 (`drive_flie_list.py`)
-- 날짜 범위로 파일 검색 (생성일/수정일 기준)
+- 날짜/시간 범위로 파일 검색 (생성일/수정일 기준)
 - 파일 타입 필터링 (PDF, DOCX, Google Docs, 이미지, 비디오 등)
 - 파일명 키워드 검색
 - 하위 폴더 재귀 검색
@@ -19,18 +19,23 @@ Google Drive에서 파일을 검색하고, Google 문서의 내용을 읽어서 
 - 파일 타입 자동 감지
 - 읽은 결과를 CSV로 저장
 
-### 3. 통합 워크플로우 (`example.py`)
-- 파일 검색과 내용 읽기를 한 번에 처리
-- 검색된 파일 ID를 자동으로 추출하여 내용 읽기
+### 3. MongoDB 통합 (`collect_all.py`)
+- 여러 폴더에서 파일 수집 및 MongoDB 저장
+- 폴더별 자동 분류 및 저장
+- `created_by` 필드 자동 매핑
 
 ## 설치 방법
 
 ### 1. 필수 패키지 설치
 
 ```bash
+# requirements.txt 사용 (권장)
+pip install -r requirements.txt
+
+# 또는 개별 설치
 pip install google-auth google-auth-oauthlib google-auth-httplib2
 pip install google-api-python-client
-pip install pandas openpyxl
+pip install pandas openpyxl pymongo python-dotenv python-dateutil
 ```
 
 ### 2. Google Cloud Console 설정
@@ -42,6 +47,21 @@ pip install pandas openpyxl
    - **OAuth 클라이언트 ID** 생성 (데스크톱 앱)
    - 또는 **서비스 계정** 생성
 5. 생성된 `credentials.json` 파일을 프로젝트 루트 디렉토리에 저장
+
+### 3. 환경 변수 설정 (MongoDB 사용 시)
+
+`.env` 파일을 생성하고 다음 내용을 추가하세요:
+
+```env
+MONGO_IP=your_mongo_ip
+MONGO_USER=your_mongo_user
+MONGO_PASSWORD=your_mongo_password
+MONGO_DATABASE=your_database_name
+SHARED_FOLDER_ID=your_shared_folder_id
+IRENE_FOLDER_ID=your_irene_folder_id
+JADEN_FOLDER_ID=your_jaden_folder_id
+KEVIN_FOLDER_ID=your_kevin_folder_id
+```
 
 ## 사용 방법
 
@@ -57,17 +77,37 @@ from googleapiclient.discovery import build
 creds = authenticate_google_drive()
 service = build('drive', 'v3', credentials=creds)
 
-# 특정 폴더에서 최근 7일간 생성된 Google Docs 검색
+# 날짜만 지정 (기본 방식)
 files = get_files_in_date_range(
     service,
     folder_id='your-folder-id',
-    start_date='2025-11-10',
-    end_date='2025-11-17',
-    search_type='created',  # 'created' 또는 'modified'
-    file_types=['gdoc'],  # Google Docs만
-    filename_keywords=['gemini'],  # 파일명에 'gemini' 포함
-    recursive=True,  # 하위 폴더 포함
+    start_date='2025-11-10',  # 2025-11-10 00:00:00 GMT
+    end_date='2025-11-17',     # 2025-11-17 23:59:59 GMT
+    search_type='created',
+    file_types=['gdoc'],
+    filename_keywords=['gemini'],
+    recursive=True,
     debug=True
+)
+
+# 시간까지 지정 (새로운 기능)
+files = get_files_in_date_range(
+    service,
+    folder_id='your-folder-id',
+    start_date='2025-11-10 09:30:00',  # 정확한 시간 지정
+    end_date='2025-11-17 18:45:00',    # 정확한 시간 지정
+    search_type='created',
+    file_types=['gdoc'],
+    recursive=True
+)
+
+# ISO 형식도 지원
+files = get_files_in_date_range(
+    service,
+    folder_id='your-folder-id',
+    start_date='2025-11-10T09:30:00',
+    end_date='2025-11-17T18:45:00',
+    search_type='created'
 )
 
 # 파일 ID 추출
@@ -137,6 +177,18 @@ reader.save_results_to_csv(
 )
 ```
 
+#### 4. MongoDB에 저장하기 (`collect_all.py`)
+
+```python
+# collect_all.py 실행
+python collect_all.py
+```
+
+이 스크립트는:
+- 여러 폴더(shared, irene, jaden, kevin)에서 파일을 수집
+- 각 폴더의 파일 내용을 읽어서 MongoDB에 저장
+- Shared 폴더의 경우 `created_by` 필드를 자동으로 매핑
+
 ## 주요 클래스 및 함수
 
 ### `GoogleDriveReader`
@@ -154,18 +206,24 @@ Google Drive 문서를 읽기 위한 클래스입니다.
 
 ### `get_files_in_date_range()`
 
-날짜 범위로 파일을 검색하는 함수입니다.
+날짜/시간 범위로 파일을 검색하는 함수입니다.
 
 #### 주요 매개변수
 
 - `service`: Google Drive API 서비스 객체
 - `folder_id`: 검색할 폴더 ID (None이면 전체 드라이브)
-- `start_date`: 시작 날짜 (datetime 또는 'YYYY-MM-DD' 형식)
-  - 기준 시간: 해당 날짜의 **00:00:00 GMT** (자정, GMT 기준)
+- `start_date`: 시작 날짜/시간
+  - 형식: `datetime` 객체 또는 문자열
+  - 문자열 형식: `'YYYY-MM-DD'`, `'YYYY-MM-DD HH:MM:SS'`, `'YYYY-MM-DDTHH:MM:SS'`
+  - 시간 미지정 시: 해당 날짜의 **00:00:00 GMT** (자정, GMT 기준)
   - 예: `'2025-11-10'` → `2025-11-10 00:00:00 GMT`부터 검색
-- `end_date`: 종료 날짜 (datetime 또는 'YYYY-MM-DD' 형식)
-  - 기준 시간: 해당 날짜의 **23:59:59 GMT** (그 날의 마지막 초, GMT 기준)
+  - 예: `'2025-11-10 09:30:00'` → 정확한 시간부터 검색
+- `end_date`: 종료 날짜/시간
+  - 형식: `datetime` 객체 또는 문자열
+  - 문자열 형식: `'YYYY-MM-DD'`, `'YYYY-MM-DD HH:MM:SS'`, `'YYYY-MM-DDTHH:MM:SS'`
+  - 시간 미지정 시: 해당 날짜의 **23:59:59 GMT** (그 날의 마지막 초, GMT 기준)
   - 예: `'2025-11-17'` → `2025-11-17 23:59:59 GMT`까지 검색
+  - 예: `'2025-11-17 18:45:00'` → 정확한 시간까지 검색
 - `search_type`: 'created' 또는 'modified' (기본값: 'modified')
 - `recursive`: 하위 폴더 포함 여부 (기본값: False)
 - `file_types`: 파일 타입 필터 (예: ['gdoc', 'pdf', 'image']) (기본값: None, 모든 타입)
@@ -222,6 +280,22 @@ Google Drive 문서를 읽기 위한 클래스입니다.
 2,파일명2,성공,5678,내용의 처음 200자...
 ```
 
+### MongoDB 저장
+
+MongoDB에 저장되는 문서 구조:
+```json
+{
+  "id": "file-id",
+  "name": "파일명",
+  "content": "파일 내용",
+  "createdTime": "2025-11-17T10:17:47.962Z",
+  "modifiedTime": "2025-11-17T11:03:07.670Z",
+  "parents": ["parent-folder-id"],
+  "created_by": "폴더명 (Shared 폴더의 경우)",
+  ...
+}
+```
+
 ## 예제 스크립트
 
 ### `csv_example.py`
@@ -234,12 +308,20 @@ CSV 저장 기능의 다양한 사용 예제를 포함합니다:
 ### `example.py`
 실제 사용 예제로, 파일 검색과 내용 읽기를 통합한 워크플로우를 보여줍니다.
 
+### `collect_all.py`
+MongoDB 통합 예제로, 여러 폴더에서 파일을 수집하여 MongoDB에 저장합니다.
+
+### `mongo/` 디렉토리
+- `clipper.py`: 개별 폴더 파일 수집 및 MongoDB 저장
+- `deletedata.py`: MongoDB 데이터 삭제 유틸리티
+
 ## 주의사항
 
 1. **권한**: Google Drive API 사용을 위해 적절한 권한이 필요합니다.
 2. **Shared Drive**: Shared Drive의 파일에 접근하려면 `supportsAllDrives=True` 옵션이 필요하며, 서비스 계정에 권한이 부여되어 있어야 합니다.
 3. **API 할당량**: Google Drive API는 일일 사용량 제한이 있습니다. 대량의 파일을 처리할 때는 주의하세요.
 4. **인증 토큰**: `token.json` 또는 `token.pickle` 파일은 보안상 중요하므로 버전 관리에 포함하지 마세요.
+5. **환경 변수**: `.env` 파일에 민감한 정보가 포함되어 있으므로 버전 관리에 포함하지 마세요.
 
 ## 문제 해결
 
@@ -259,6 +341,29 @@ CSV 저장 기능의 다양한 사용 예제를 포함합니다:
 - 파일 타입 필터가 너무 제한적인지 확인
 - `recursive=True`로 설정하여 하위 폴더도 검색
 
+### MongoDB 연결 오류
+- `.env` 파일이 올바르게 설정되어 있는지 확인
+- MongoDB 서버가 실행 중인지 확인
+- 네트워크 연결 및 방화벽 설정 확인
+
+## 프로젝트 구조
+
+```
+recording_script_collector/
+├── collect_all.py          # MongoDB 통합 메인 스크립트
+├── csv_example.py          # CSV 저장 예제
+├── drive_flie_list.py      # 파일 검색 기능
+├── example.py              # 기본 사용 예제
+├── google_drive_reader.py  # 문서 읽기 기능
+├── requirements.txt        # 패키지 의존성
+├── README.md               # 이 파일
+├── mongo/                  # MongoDB 관련 스크립트
+│   ├── clipper.py
+│   ├── deletedata.py
+│   └── mongo.user.setup.js
+└── credentials.json        # Google API 인증 정보 (생성 필요)
+```
+
 ## 라이선스
 
 이 프로젝트는 개인 사용 목적으로 제작되었습니다.
@@ -266,4 +371,3 @@ CSV 저장 기능의 다양한 사용 예제를 포함합니다:
 ## 기여
 
 버그 리포트나 기능 제안은 이슈로 등록해주세요.
-
