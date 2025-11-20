@@ -44,7 +44,7 @@ def collect_files(shared_folder_id, s_date, e_date):
         end_date=e_date,
         search_type='created',
         file_types=['gdoc'],
-        filename_keywords=['gemini'],
+        filename_keywords=['– Transcript', 'Notes by Gemini','Gemini가 작성한 회의록'], # transcript or gemini is in filename, it will be collected
         recursive=True,
         debug=True
     )
@@ -123,6 +123,54 @@ def insert_documents_to_mongo(documents, collection):
     print(f"Inserted {len(documents)} documents")
     return len(documents)
 
+def test():
+
+    shared_folder_id = os.getenv('SHARED_FOLDER_ID')
+    irene_folder_id = os.getenv('IRENE_FOLDER_ID')
+    jaden_folder_id = os.getenv('JADEN_FOLDER_ID')
+    kevin_folder_id = os.getenv('KEVIN_FOLDER_ID')
+
+    shared_folder_id = os.getenv('SHARED_FOLDER_ID')
+    irene_folder_id = os.getenv('IRENE_FOLDER_ID')
+    jaden_folder_id = os.getenv('JADEN_FOLDER_ID')
+    kevin_folder_id = os.getenv('KEVIN_FOLDER_ID')
+
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    start_date = "2000-01-01" # 00:00:00 GMT
+    end_date = today # 23:59:59 GMT
+
+    folder_list = [shared_folder_id, irene_folder_id, jaden_folder_id, kevin_folder_id]
+    
+    # collection_list = [client.shared.recordings, client.irene.recordings, client.jaden.recordings, client.kevin.recordings]
+    collection_list = [client.test_database.recordings, client.test_database.recordings, client.test_database.recordings, client.test_database.recordings]
+    
+    collection_dict = dict(zip(folder_list, collection_list))
+
+    files_dict = {}
+
+    #collect files from each folder
+    for folder_id, collection in collection_dict.items():
+        collected_files = collect_files(folder_id, start_date, end_date)
+        c_files_shared = collect_contents(collected_files) #return list of tuples (filename, content)
+        collected_files = add_contents_to_files(collected_files, c_files_shared) #fill in content
+        if folder_id == shared_folder_id: #only for shared folder
+            idmap = get_idmap(collected_files) #return dict of folder id to folder name
+            collected_files = add_created_by_to_files(collected_files, idmap) #fill in created_by
+        files_dict[folder_id] = collected_files
+
+    #insert files to mongo
+    for folder_id, files in files_dict.items():
+        collection = collection_dict[folder_id]
+        if len(files) > 0:
+            print(f"Inserting {len(files)} documents to {collection.full_name}")
+            insert_documents_to_mongo(files, collection)
+        else:
+            print(f"No documents to insert to {collection.full_name}")
+
+    return files_dict
+
+
 if __name__ == "__main__":
 
     shared_folder_id = os.getenv('SHARED_FOLDER_ID')
@@ -143,10 +191,11 @@ if __name__ == "__main__":
 
     folder_list = [shared_folder_id, irene_folder_id, jaden_folder_id, kevin_folder_id]
     
-    # collection_list = [client.shared.recordings, client.irene.recordings, client.jaden.recordings, client.kevin.recordings]
+    # For Production
+    collection_list = [client.shared.recordings, client.irene.recordings, client.jaden.recordings, client.kevin.recordings]
     
-    # for test
-    collection_list = [client.test_database.recordings, client.test_database.recordings, client.test_database.recordings, client.test_database.recordings]
+    # For testing
+    # collection_list = [client.test_database.recordings, client.test_database.recordings, client.test_database.recordings, client.test_database.recordings]
     
     collection_dict = dict(zip(folder_list, collection_list))
 
